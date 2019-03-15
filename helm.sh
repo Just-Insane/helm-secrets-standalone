@@ -1,11 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC1003
 
 set -e
 
 export yml=/Users/justin/Documents/CODE/kubernetes/src/services/nextcloud/values.yaml
 export VAULT_ADDR=http://10.0.40.234:8200/
-export VAULT_TOKEN=
+if [[ -z "${VAULT_TOKEN}" ]]
+then
+    export VAULT_TOKEN=
+fi
 
 parse_yaml() {
     local yaml_file=$1
@@ -57,7 +60,7 @@ create_variables() {
     eval "$(parse_yaml "$yaml_file" "$prefix" | awk '/image_repository/{print $0}')"
 }
 
-set_secrets() {
+set_secrets() { # Parse plaintext values.yaml file looking for secret key, prompt for input, then send input to Vault
     report () { echo "${1%%=*}"; };
 
     envsarray=()
@@ -81,14 +84,18 @@ get_secrets() { # Read secrets from Vault and write to values.yaml.dec file, sub
         envsarray+=( "$line" )
     done < <( set -o posix +o allexport; set | grep "changeme" | awk 'match($0, "\.=") {print substr($0, 1, RSTART)}' )
 
+    yml_dec="$yml.dec"
+    cp $yml $yml_dec
+
     for env in "${envsarray[@]}";
     do
-        yml_dec="$yml.dec"
         sec_values=`vault kv get secret/helm/$image_repository/$env | grep "value" | awk '/value/{print $2}'`
         echo "Secret Values = $sec_values"
         for sec in "${sec_values[@]}";
         do
-            sed -i.dec "s/changeme/$sec/" $yml > $yml_dec
+            #this will fail if "changeme" is on the first line of the file, but is required for GNU sed
+            sed -i.tmp "1,// s/changeme/$sec/" $yml_dec
+        done
     done
 }
 
