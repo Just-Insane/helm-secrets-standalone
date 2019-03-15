@@ -10,6 +10,7 @@ then
     export VAULT_TOKEN=
 fi
 
+# Parses yaml document
 parse_yaml() {
     local yaml_file=$1
     local prefix=$2
@@ -53,6 +54,7 @@ parse_yaml() {
     ) < "$yaml_file"
 }
 
+# Created environment variables for secrets key invocations as well as the image repository
 create_variables() {
     local yaml_file="$1"
     local prefix="$2"
@@ -60,7 +62,8 @@ create_variables() {
     eval "$(parse_yaml "$yaml_file" "$prefix" | awk '/image_repository/{print $0}')"
 }
 
-set_secrets() { # Parse plaintext values.yaml file looking for secret key, prompt for input, then send input to Vault
+# Prompts user for secret material and uploads to vault K/V Store
+set_secrets() {
     report () { echo "${1%%=*}"; };
 
     envsarray=()
@@ -76,7 +79,8 @@ set_secrets() { # Parse plaintext values.yaml file looking for secret key, promp
     done
 }
 
-get_secrets() { # Read secrets from Vault and write to values.yaml.dec file, substituting the values from helm into the plaintext values.yaml file
+# Pulls secret material from vault K/V store and saves it to a .dec file, needed by helm to update or deploy
+get_secrets() { 
     report () { echo "${1%%=*}"; };
 
     envsarray=()
